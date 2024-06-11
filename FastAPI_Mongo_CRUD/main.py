@@ -1,8 +1,10 @@
 from fastapi import FastAPI, status, HTTPException
+from fastapi.responses import StreamingResponse
 from schemas import employeeEntity, employeeEntityList
 from models import EmployeeBase, Employee
 from database import db_lifespan
 from bson import ObjectId
+import pandas as pd
 
 app: FastAPI = FastAPI(lifespan=db_lifespan)
 
@@ -25,6 +27,14 @@ async def get_employees():
     employees = employeeEntityList(await app.employeeData.employees.find().to_list(length=100))
     return employees
 
+@app.get("/employees/csv")
+async def get_employees_as_CSV():
+    employees = await get_employees()
+    df = pd.DataFrame(employees)
+    csv = df.to_csv(index=False)
+    print(csv)
+    return StreamingResponse(content=csv, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=employees.csv"})
+    
 
 @app.get("/employees/{employee_id}", response_model=Employee)
 async def get_employee(employee_id: str):

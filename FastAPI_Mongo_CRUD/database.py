@@ -9,8 +9,8 @@ logging.basicConfig(level=logging.INFO)
 
 async def db_lifespan(app: FastAPI):
     # Startup
-    app.mongodb_client = AsyncIOMotorClient(os.getenv("MONGODB_URL"), tls=True, tlsAllowInvalidCertificates=True)
-    app.employeeData = app.mongodb_client.employeeData
+    app.client = AsyncIOMotorClient(os.getenv("MONGODB_URL"), tls=True, tlsAllowInvalidCertificates=True)
+    app.employeeData = app.client.employeeData
     ping_response = await app.employeeData.command("ping")
     if int(ping_response["ok"]) != 1:
         raise Exception("Problem connecting to database cluster.")
@@ -21,4 +21,4 @@ async def db_lifespan(app: FastAPI):
 
     # Shutdown
     logging.info("Closing connection to database cluster.")
-    app.mongodb_client.close()
+    app.client.close()

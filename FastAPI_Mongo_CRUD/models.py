@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
-class Employee(BaseModel):
+class EmployeeBase(BaseModel):
     name: str
     email: str
 
-class EmployeeInDB(Employee):
+class Employee(EmployeeBase):
     id: str

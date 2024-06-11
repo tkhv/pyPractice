@@ -33,3 +33,23 @@ async def get_employee(employee_id: str):
         return employeeEntity(employee)
     else:
         raise HTTPException(status_code=404, detail="Employee " + employee_id + " not found")
+
+
+@app.post("/employees/{employee_id}", response_model=Employee)
+async def update_employee(employee: EmployeeBase, employee_id: str):
+    res = await app.employeeData.employees.find_one_and_update(
+        {"_id": ObjectId(employee_id)}, {"$set": dict(employee)}, return_document=True
+    )
+    if res:
+        return employeeEntity(res)
+    else:
+        raise HTTPException(status_code=404, detail="Employee " + employee_id + " not found")
+
+
+@app.delete("/employees/{employee_id}", response_model=Employee)
+async def delete_employee(employee_id: str):
+    res = await app.employeeData.employees.find_one_and_delete({"_id": ObjectId(employee_id)})
+    if res:
+        return employeeEntity(res)
+    else:
+        raise HTTPException(status_code=404, detail="Employee " + employee_id + " not found")

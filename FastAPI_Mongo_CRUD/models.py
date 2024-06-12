@@ -10,7 +10,18 @@ class EmployeeBase(BaseModel):
     salary: float
     performance_rating: int
 
+
 class Employee(EmployeeBase):
     id: str
     bonus_percent: int
     total_pay: float
+
+
+class EmployeeMod(BaseModel):
+    id: str
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[int] = None
+    salary: Optional[float] = None
+    performance_rating: Optional[int] = None
+

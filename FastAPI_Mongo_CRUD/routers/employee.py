@@ -1,7 +1,7 @@
 from fastapi import status, HTTPException, APIRouter, Request
 from fastapi.responses import StreamingResponse
 from schemas import employeeEntity, employeeEntityList
-from models import EmployeeBase, Employee
+from models import EmployeeBase, Employee, EmployeeMod
 from bson import ObjectId
 import pandas as pd
 
@@ -78,14 +78,26 @@ async def get_employee(employee_id: str, request: Request):
 
 
 @router.post("/employees/{employee_id}", response_model=Employee)
-async def update_employee(employee: EmployeeBase, employee_id: str, request: Request):
-    res = await request.app.employeeData.employees.find_one_and_update(
-        {"_id": ObjectId(employee_id)}, {"$set": dict(employee)}, return_document=True
-    )
+async def update_employee(employeeMod: EmployeeMod, request: Request):
+    employee = employeeEntity(await request.app.employeeData.employees.find_one({"_id": ObjectId(employeeMod.id)}))
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee " + employeeMod.id + " not found")
+    
+    for key, value in employeeMod.dict().items():
+        if value:
+            employee[key] = value
+    
+    bonus = bonus_calc(employee["salary"], employee["performance_rating"])
+    employee["bonus_percent"] = bonus[0]
+    employee["total_pay"] = bonus[1]
+    
+    print(employee)
+
+    res = await request.app.employeeData.employees.find_one_and_replace({"_id": ObjectId(employeeMod.id)}, employee)
     if res:
-        return employeeEntity(res)
+        return employee
     else:
-        raise HTTPException(status_code=404, detail="Employee " + employee_id + " not found")
+        raise HTTPException(status_code=404, detail="Employee " + employeeMod.id + " not found")
 
 
 @router.delete("/employees/{employee_id}", response_model=Employee)

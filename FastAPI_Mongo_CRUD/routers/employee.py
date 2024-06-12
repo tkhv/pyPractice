@@ -4,6 +4,7 @@ from schemas import employeeEntity, employeeEntityList
 from models import EmployeeBase, Employee, EmployeeMod
 from bson import ObjectId
 import pandas as pd
+from routers.logs import post_log
 
 router = APIRouter()
 
@@ -79,25 +80,33 @@ async def get_employee(employee_id: str, request: Request):
 
 @router.post("/employees/{employee_id}", response_model=Employee)
 async def update_employee(employeeMod: EmployeeMod, request: Request):
-    employee = employeeEntity(await request.app.employeeData.employees.find_one({"_id": ObjectId(employeeMod.id)}))
+    employee = employeeEntity(await request.app.employeeData.employees.find_one({"_id": ObjectId(employeeMod.target_id)}))
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee " + employeeMod.id + " not found")
-    
+        raise HTTPException(status_code=404, detail="Employee " + employeeMod.target_id + " not found")
+    original_employee = employee.copy()
+
+    num_fields_changed = 0
     for key, value in employeeMod.dict().items():
-        if value:
+        if value and key != "target_id" and key != "source_id":
             employee[key] = value
+            num_fields_changed += 1
     
+    if num_fields_changed == 0:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    await post_log(request, employeeMod, original_employee, num_fields_changed)
+
     bonus = bonus_calc(employee["salary"], employee["performance_rating"])
     employee["bonus_percent"] = bonus[0]
     employee["total_pay"] = bonus[1]
     
     print(employee)
 
-    res = await request.app.employeeData.employees.find_one_and_replace({"_id": ObjectId(employeeMod.id)}, employee)
+    res = await request.app.employeeData.employees.find_one_and_replace({"_id": ObjectId(employeeMod.target_id)}, employee)
     if res:
         return employee
     else:
-        raise HTTPException(status_code=404, detail="Employee " + employeeMod.id + " not found")
+        raise HTTPException(status_code=404, detail="Employee " + employeeMod.target_id + " not found")
 
 
 @router.delete("/employees/{employee_id}", response_model=Employee)

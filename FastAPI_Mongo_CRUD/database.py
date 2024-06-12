@@ -11,6 +11,7 @@ async def db_lifespan(app: FastAPI):
     # Startup
     app.client = AsyncIOMotorClient(os.getenv("MONGODB_URL"), tls=True, tlsAllowInvalidCertificates=True)
     app.employeeData = app.client.employeeData
+    app.logData = app.client.logData
     ping_response = await app.employeeData.command("ping")
     if int(ping_response["ok"]) != 1:
         raise Exception("Problem connecting to database cluster.")

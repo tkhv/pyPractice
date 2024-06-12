@@ -18,10 +18,27 @@ class Employee(EmployeeBase):
 
 
 class EmployeeMod(BaseModel):
-    id: str
-    name: Optional[str] = None
+    target_id: str
+    source_id: str
     email: Optional[str] = None
     phone: Optional[int] = None
     salary: Optional[float] = None
     performance_rating: Optional[int] = None
+
+
+class Changelog(BaseModel):
+    id: Optional[str] = None
+    timestamp: datetime
+    target_id: str
+    target_name: str
+    source_id: str
+    num_fields_changed: int
+
+
+class LogEntry(BaseModel):
+    id: Optional[str] = None
+    changelog_id: str
+    field_name: str
+    prev_val: Optional[str | float | int | bool]
+    new_val: Optional[str | float | int | bool]
 

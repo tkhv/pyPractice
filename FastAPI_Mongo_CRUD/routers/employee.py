@@ -1,10 +1,14 @@
 from fastapi import status, HTTPException, APIRouter, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from schemas import employeeEntity, employeeEntityList
 from models import EmployeeBase, Employee, EmployeeMod
 from bson import ObjectId
 import pandas as pd
 from routers.logs import post_log
+from typing import Optional
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 router = APIRouter()
 
@@ -49,25 +53,78 @@ async def add_employee(employeeBase: EmployeeBase, request: Request):
     res = await request.app.employeeData.employees.insert_one((employee))
     if res.acknowledged:
         employee["id"] = str(res.inserted_id)
-        return employee
+        return Employee(employee)
     else:
         raise HTTPException(status_code=400, detail="Failed to add employee")
 
 
-@router.get("/employees", response_model=list[Employee])
-async def get_employees(request: Request):
+@router.get("/employees")
+async def get_employees(request: Request, sort_by: Optional[str] = None, salary_gte: Optional[float] = None, salary_lte: Optional[float] = None, performance_rating_gte: Optional[int] = None, performance_rating_lte: Optional[int] = None, response_file_type: Optional[str] = None):
+    if sort_by is not None and sort_by not in Employee.model_fields:
+        raise HTTPException(status_code=400, detail="Invalid sort_by field")
+
     employees = employeeEntityList(await request.app.employeeData.employees.find().to_list(length=100))
-    return employees
 
+    if salary_gte is not None:
+        employees = [employee for employee in employees if employee["salary"] >= salary_gte]
+    if salary_lte is not None:
+        employees = [employee for employee in employees if employee["salary"] <= salary_lte]
+    if performance_rating_gte is not None:
+        employees = [employee for employee in employees if employee["performance_rating"] >= performance_rating_gte]
+    if performance_rating_lte is not None:
+        employees = [employee for employee in employees if employee["performance_rating"] <= performance_rating_lte]
 
-@router.get("/employees/csv")
-async def get_employees_as_CSV(request: Request):
-    employees = await get_employees(request=request)
-    df = pd.DataFrame(employees)
-    csv = df.to_csv(index=False)
-    print(csv)
-    return StreamingResponse(content=csv, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=employees.csv"})
+    if sort_by is not None:
+        # Sort in descending order
+        employees = sorted(employees, key=lambda x: x[sort_by], reverse=True)
 
+    if response_file_type == "csv":
+        df = pd.DataFrame(employees)
+        csv = df.to_csv(index=False)
+        return StreamingResponse(content=csv, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=employees.csv"})
+    elif response_file_type == "xlsx":
+        df = pd.DataFrame(employees)
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Employees')
+        buffer.seek(0)
+        return StreamingResponse(
+            content=buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=employees.xlsx"}
+        )
+    elif response_file_type == "pdf":
+        df = pd.DataFrame(employees)
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+
+        # Adding the data to the PDF
+        c.drawString(30, height - 40, "Employees Report")
+        c.drawString(30, height - 60, f"Total Employees: {len(employees)}")
+        
+        # Define the start position
+        start_y = height - 100
+        line_height = 15
+
+        for i, row in df.iterrows():
+            if start_y - line_height < 40:  # Check if we need to add a new page
+                c.showPage()
+                start_y = height - 40
+            text = ', '.join([f"{col}: {row[col]}" for col in df.columns])
+            c.drawString(30, start_y, text)
+            start_y -= line_height
+
+        c.showPage()
+        c.save()
+        buffer.seek(0)
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=employees.pdf"}
+        )
+
+    return list[Employee](employees)
 
 @router.get("/employees/{employee_id}", response_model=Employee)
 async def get_employee(employee_id: str, request: Request):

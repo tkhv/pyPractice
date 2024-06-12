@@ -42,3 +42,6 @@ class LogEntry(BaseModel):
     prev_val: Optional[str | float | int | bool]
     new_val: Optional[str | float | int | bool]
 
+
+class FullLog(Changelog):
+    log_entries: list[LogEntry]

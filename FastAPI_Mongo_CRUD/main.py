@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from database import db_lifespan
-from routers import employee
+from routers import employee, logs
 
 app: FastAPI = FastAPI(lifespan=db_lifespan)
 app.include_router(employee.router)
+app.include_router(logs.router)
 
 @app.get("/")
 def hello_world():
